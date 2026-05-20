@@ -1,8 +1,11 @@
-import { DashboardClient } from "@/components/dashboard/DashboardClient";
+﻿import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { DashboardStats } from "@/components/DashboardStats";
 import { createClient } from "@/lib/supabase/server";
 import { fetchConcertsForUser, normalizeConcert } from "@/lib/fetch-concerts";
 import type { Concert } from "@/types/concert";
+
+/** Always render fresh — avoids stale stat cards on hosted deploys */
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
