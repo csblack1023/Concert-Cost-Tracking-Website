@@ -2,34 +2,35 @@
 
 import type { Concert } from "@/types/concert";
 import {
+  makeCategoryBarEndLabel,
+  ConcertBarShape,
+} from "@/components/dashboard/chart-bar-labels";
+import {
   categoryTotals,
-  funPointsPer100,
+  formatCurrency,
+  monthlySpendingForYear,
+  spendingChartYear,
   totalCost,
 } from "@/lib/concert-utils";
+import {
+  CHART_ANIMATION,
+  CHART_TOOLTIP_STYLE,
+  colorForCategory,
+  colorForConcertIndex,
+} from "@/lib/chart-colors";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Pie,
-  PieChart,
+  LabelList,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-
-const CHART_COLORS = [
-  "oklch(var(--p))",
-  "oklch(var(--s))",
-  "oklch(var(--a))",
-  "oklch(var(--in))",
-  "oklch(var(--su))",
-  "oklch(var(--wa))",
-  "oklch(var(--er))",
-  "oklch(var(--n))",
-];
 
 type DashboardChartsProps = {
   concerts: Concert[];
@@ -38,85 +39,118 @@ type DashboardChartsProps = {
 export function DashboardCharts({ concerts }: DashboardChartsProps) {
   if (concerts.length === 0) return null;
 
+  const chartYear = spendingChartYear(concerts);
+  const monthlyData = monthlySpendingForYear(concerts, chartYear);
+
   const spendingByCategory = categoryTotals(concerts);
-  const byConcert = concerts.map((c) => {
+  const categoryTotal = spendingByCategory.reduce((sum, row) => sum + row.value, 0);
+
+  const categoryBarData = spendingByCategory.map((row, i) => {
+    const pct = categoryTotal > 0 ? (row.value / categoryTotal) * 100 : 0;
+    return {
+      ...row,
+      fill: colorForCategory(row.name, i),
+      pct,
+    };
+  });
+
+  const byConcert = concerts.map((c, index) => {
     const name =
       c.concert_name.length > 18 ? `${c.concert_name.slice(0, 16)}…` : c.concert_name;
     return {
       name,
       fullName: c.concert_name,
       totalCost: totalCost(c),
-      funRating: Number(c.fun_rating),
-      funPer100: funPointsPer100(c),
+      fill: colorForConcertIndex(index),
     };
   });
 
+  const maxCategoryValue = Math.max(...categoryBarData.map((d) => d.value), 1);
+  const maxConcertCost = Math.max(...byConcert.map((d) => d.totalCost), 1);
+  const CategoryLabel = makeCategoryBarEndLabel(categoryTotal);
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
-      <ChartCard title="Spending by cost category">
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={spendingByCategory}
+      <ChartCard title="Monthly Concert Spending Trendline">
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={monthlyData} margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={(v) => formatCurrency(v).replace(/\s/g, "")} />
+            <Tooltip
+              {...CHART_TOOLTIP_STYLE}
+              formatter={(v: number) => formatCurrency(Number(v))}
+              labelFormatter={(label) => `${label} ${chartYear}`}
+            />
+            <Line
+              {...CHART_ANIMATION}
+              type="monotone"
+              dataKey="total"
+              stroke={colorForConcertIndex(0)}
+              strokeWidth={2}
+              dot={{ r: 4, fill: colorForConcertIndex(0) }}
+              activeDot={{ r: 6 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Cost breakdown by category (USD)" className="dashboard-bar-chart-card">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart
+            className="dashboard-bar-chart"
+            data={categoryBarData}
+            layout="vertical"
+            margin={{ left: 8, right: 56, top: 8, bottom: 8 }}
+            accessibilityLayer={false}
+          >
+            <CartesianGrid strokeDasharray="3 3" opacity={0.25} horizontal={false} />
+            <XAxis
+              type="number"
+              domain={[0, maxCategoryValue * 1.12]}
+              tickFormatter={(v) => formatCurrency(v).replace(/\s/g, "")}
+            />
+            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+            <Bar
+              {...CHART_ANIMATION}
               dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={90}
-              label={({ name, percent }: { name: string; percent?: number }) =>
-                `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-              }
+              radius={[0, 6, 6, 0]}
+              isAnimationActive={false}
             >
-              {spendingByCategory.map((_, i) => (
-                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              {categoryBarData.map((entry) => (
+                <Cell key={entry.name} fill={entry.fill} />
               ))}
-            </Pie>
-            <Tooltip formatter={(v: number) => `$${v.toFixed(2)}`} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      <ChartCard title="Total cost by concert">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={byConcert} margin={{ bottom: 48 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis dataKey="name" angle={-25} textAnchor="end" height={70} interval={0} />
-            <YAxis tickFormatter={(v) => `$${v}`} />
-            <Tooltip
-              formatter={(v: number) => [`$${v.toFixed(2)}`, "Total cost"]}
-              labelFormatter={(_, payload) =>
-                payload?.[0]?.payload?.fullName ?? ""
-              }
-            />
-            <Bar dataKey="totalCost" fill="oklch(var(--p))" radius={[4, 4, 0, 0]} />
+              <LabelList dataKey="value" content={CategoryLabel} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Fun rating by concert">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={byConcert} margin={{ bottom: 48 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis dataKey="name" angle={-25} textAnchor="end" height={70} interval={0} />
-            <YAxis domain={[0, 10]} />
-            <Tooltip labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""} />
-            <Bar dataKey="funRating" fill="oklch(var(--s))" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      <ChartCard title="Fun Points per $100 by concert">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={byConcert} margin={{ bottom: 48 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis dataKey="name" angle={-25} textAnchor="end" height={70} interval={0} />
-            <YAxis />
-            <Tooltip
-              formatter={(v: number) => [v.toFixed(2), "Fun Points per $100"]}
-              labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName ?? ""}
+      <ChartCard title="Total cost by concert (USD)" className="xl:col-span-2 dashboard-bar-chart-card">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart
+            className="dashboard-bar-chart"
+            data={byConcert}
+            margin={{ bottom: 56, left: 8, right: 8, top: 28 }}
+            accessibilityLayer={false}
+          >
+            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+            <XAxis dataKey="name" angle={-22} textAnchor="end" height={72} interval={0} />
+            <YAxis
+              domain={[0, maxConcertCost * 1.15]}
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v) => formatCurrency(v).replace(/\s/g, "")}
             />
-            <Bar dataKey="funPer100" fill="oklch(var(--a))" radius={[4, 4, 0, 0]} />
+            <Bar
+              dataKey="totalCost"
+              shape={ConcertBarShape}
+              isAnimationActive={false}
+              activeBar={false}
+            >
+              {byConcert.map((entry) => (
+                <Cell key={entry.fullName} fill={entry.fill} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -124,9 +158,17 @@ export function DashboardCharts({ concerts }: DashboardChartsProps) {
   );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="card bg-base-100 shadow-md border border-base-300">
+    <div className={`card bg-base-100 shadow-md border border-base-300 ${className}`}>
       <div className="card-body">
         <h3 className="card-title text-base">{title}</h3>
         {children}

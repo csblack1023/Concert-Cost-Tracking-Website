@@ -1,8 +1,11 @@
-import type { Concert } from "@/types/concert";
+import { formatUsd, FUN_POINTS_LABEL } from "@/lib/format-usd";
+import { ticketsTotalFromGroups } from "@/lib/ticket-utils";
+import type { Concert, TicketGroup } from "@/types/concert";
 
-export function totalCost(c: Pick<
+export { formatUsd as formatCurrency, FUN_POINTS_LABEL };
+
+type CostFields = Pick<
   Concert,
-  | "ticket_cost"
   | "ticket_fees"
   | "parking_cost"
   | "food_drink_cost"
@@ -10,9 +13,23 @@ export function totalCost(c: Pick<
   | "lodging_cost"
   | "travel_cost"
   | "other_cost"
->): number {
+>;
+
+export function ticketCostForConcert(
+  c: Pick<Concert, "ticket_cost"> & { concert_ticket_groups?: TicketGroup[] }
+): number {
+  const groups = c.concert_ticket_groups;
+  if (groups && groups.length > 0) {
+    return ticketsTotalFromGroups(groups);
+  }
+  return Number(c.ticket_cost) || 0;
+}
+
+export function totalCost(
+  c: CostFields & Pick<Concert, "ticket_cost"> & { concert_ticket_groups?: TicketGroup[] }
+): number {
   return (
-    Number(c.ticket_cost) +
+    ticketCostForConcert(c) +
     Number(c.ticket_fees) +
     Number(c.parking_cost) +
     Number(c.food_drink_cost) +
@@ -23,26 +40,11 @@ export function totalCost(c: Pick<
   );
 }
 
-export function costPerHour(c: Concert): number {
-  const hours = Number(c.hours_at_event);
-  if (hours <= 0) return 0;
-  return totalCost(c) / hours;
-}
-
-/** Fun Points per $100 — higher means better value */
+/** Fun Points per $100 — higher is better value */
 export function funPointsPer100(c: Concert): number {
   const cost = totalCost(c);
   if (cost <= 0) return 0;
   return (Number(c.fun_rating) / cost) * 100;
-}
-
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 export function formatDate(dateStr: string): string {
@@ -54,8 +56,7 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-export const COST_CATEGORIES = [
-  { key: "ticket_cost" as const, label: "Tickets" },
+export const OTHER_COST_FIELDS = [
   { key: "ticket_fees" as const, label: "Ticket fees" },
   { key: "parking_cost" as const, label: "Parking" },
   { key: "food_drink_cost" as const, label: "Food & drink" },
@@ -66,20 +67,72 @@ export const COST_CATEGORIES = [
 ];
 
 export function topCostCategories(c: Concert, limit = 3): string[] {
-  return COST_CATEGORIES.map(({ key, label }) => ({
-    label,
-    amount: Number(c[key]),
-  }))
+  const items: { label: string; amount: number }[] = [
+    { label: "Tickets", amount: ticketCostForConcert(c) },
+    ...OTHER_COST_FIELDS.map(({ key, label }) => ({
+      label,
+      amount: Number(c[key]),
+    })),
+  ];
+  return items
     .filter((x) => x.amount > 0)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, limit)
-    .map((x) => `${x.label} (${formatCurrency(x.amount)})`);
+    .map((x) => `${x.label} (${formatUsd(x.amount)})`);
+}
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** Year used for Jan–Dec monthly chart (current year if any concert, else latest concert year) */
+export function spendingChartYear(concerts: Concert[]): number {
+  const current = new Date().getFullYear();
+  if (concerts.length === 0) return current;
+  const hasCurrent = concerts.some(
+    (c) => new Date(c.concert_date.split("T")[0]).getFullYear() === current
+  );
+  if (hasCurrent) return current;
+  return Math.max(
+    ...concerts.map((c) => new Date(c.concert_date.split("T")[0]).getFullYear())
+  );
+}
+
+export function monthlySpendingForYear(
+  concerts: Concert[],
+  year: number
+): { month: string; total: number }[] {
+  const totals = new Array(12).fill(0);
+  for (const c of concerts) {
+    const [y, m] = c.concert_date.split("T")[0].split("-").map(Number);
+    if (y === year && m >= 1 && m <= 12) {
+      totals[m - 1] += totalCost(c);
+    }
+  }
+  return MONTH_SHORT.map((month, i) => ({ month, total: totals[i] }));
 }
 
 export function categoryTotals(concerts: Concert[]): { name: string; value: number }[] {
   const totals: Record<string, number> = {};
-  for (const { key, label } of COST_CATEGORIES) {
-    totals[label] = concerts.reduce((sum, c) => sum + Number(c[key]), 0);
+  for (const c of concerts) {
+    const add = (label: string, amount: number) => {
+      totals[label] = (totals[label] ?? 0) + amount;
+    };
+    add("Tickets", ticketCostForConcert(c));
+    for (const { key, label } of OTHER_COST_FIELDS) {
+      add(label, Number(c[key]));
+    }
   }
   return Object.entries(totals)
     .map(([name, value]) => ({ name, value }))

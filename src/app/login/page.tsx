@@ -1,7 +1,14 @@
 import { LoginForm } from "@/components/LoginForm";
 import { ThemeSelector } from "@/components/ThemeSelector";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
+  const authFailed = params.error === "auth";
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex justify-end p-4 max-w-6xl mx-auto w-full">
@@ -27,6 +34,11 @@ export default function LoginPage() {
               <li>✓ Dashboard with charts and stats</li>
             </ul>
           </div>
+          {authFailed && (
+            <div className="alert alert-error max-w-md w-full mb-4">
+              <span>Sign-in link expired or failed. Try logging in with your email and password.</span>
+            </div>
+          )}
           <LoginForm />
         </div>
       </div>

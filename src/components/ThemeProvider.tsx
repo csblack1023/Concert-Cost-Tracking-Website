@@ -11,13 +11,11 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState("light");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) || "light";
     setThemeState(saved);
     document.documentElement.setAttribute("data-theme", saved);
-    setMounted(true);
   }, []);
 
   const setTheme = (next: string) => {
@@ -25,10 +23,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, next);
     document.documentElement.setAttribute("data-theme", next);
   };
-
-  if (!mounted) {
-    return <div style={{ visibility: "hidden" }}>{children}</div>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

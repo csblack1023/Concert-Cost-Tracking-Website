@@ -23,7 +23,7 @@ export function AppHeader({ email }: AppHeaderProps) {
             Concert Cost Tracker
           </h1>
           <p className="text-sm opacity-80 max-w-xl">
-            Log what you spent, rate the fun, and see which shows were worth every dollar.
+            Log what you spent in USD, rate the fun, and see which shows were worth every dollar.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">

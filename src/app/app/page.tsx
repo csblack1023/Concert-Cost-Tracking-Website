@@ -1,16 +1,14 @@
-import { DashboardCharts } from "@/components/DashboardCharts";
+import { DashboardClient } from "@/components/dashboard/DashboardClient";
 import { DashboardStats } from "@/components/DashboardStats";
 import { createClient } from "@/lib/supabase/server";
+import { fetchConcertsForUser, normalizeConcert } from "@/lib/fetch-concerts";
 import type { Concert } from "@/types/concert";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("concerts")
-    .select("*")
-    .order("concert_date", { ascending: false });
+  const { data, error } = await fetchConcertsForUser(supabase);
 
-  const concerts = (data ?? []) as Concert[];
+  const concerts = (data ?? []).map((row) => normalizeConcert(row as Concert));
 
   return (
     <div>
@@ -18,13 +16,13 @@ export default async function DashboardPage() {
       {error && (
         <div className="alert alert-warning mb-4">
           <span>
-            Could not load concerts. Make sure the database table exists and your account is
-            set up. ({error.message})
+            Could not load concerts. ({error.message}) If you added new features, run
+            supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql in the Supabase SQL Editor.
           </span>
         </div>
       )}
       <DashboardStats concerts={concerts} />
-      <DashboardCharts concerts={concerts} />
+      <DashboardClient concerts={concerts} />
     </div>
   );
 }

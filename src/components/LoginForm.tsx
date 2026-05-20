@@ -1,10 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AlignedField } from "@/components/AlignedField";
 
+function friendlyAuthError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid login credentials")) {
+    return "Wrong email or password. Try again, or use Create an account if you have not signed up yet.";
+  }
+  if (lower.includes("email not confirmed")) {
+    return "Please confirm your email first. Check your inbox for a link from Supabase, or ask your teacher to turn off email confirmation in Supabase.";
+  }
+  if (lower.includes("user already registered")) {
+    return "This email already has an account. Switch to Log in instead.";
+  }
+  return message;
+}
+
 export function LoginForm() {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,28 +34,47 @@ export function LoginForm() {
     setMessage(null);
     setLoading(true);
 
+    const redirectTo = `${window.location.origin}/auth/callback`;
+
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectTo },
+      });
       setLoading(false);
       if (error) {
-        setMessage({ type: "error", text: error.message });
+        setMessage({ type: "error", text: friendlyAuthError(error.message) });
+        return;
+      }
+      if (data.session) {
+        router.refresh();
+        router.push("/app");
         return;
       }
       setMessage({
         type: "success",
-        text: "Account created! Check your email if confirmation is required, then log in.",
+        text: "Account created! If email confirmation is on, check your inbox. Otherwise, log in below.",
       });
       setMode("login");
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      setMessage({ type: "error", text: error.message });
+      setMessage({ type: "error", text: friendlyAuthError(error.message) });
       return;
     }
-    window.location.href = "/app";
+    if (data.session) {
+      router.refresh();
+      router.push("/app");
+    } else {
+      setMessage({
+        type: "error",
+        text: "Signed in, but no session was created. Check Supabase URL settings for this site.",
+      });
+    }
   }
 
   return (

@@ -11,3 +11,13 @@
     scroll-behavior: smooth;
   }
 }
+
+/* Recharts: no hover tooltips/cursors on dashboard bar charts */
+.dashboard-bar-chart-card .recharts-tooltip-wrapper,
+.dashboard-bar-chart-card .recharts-default-tooltip,
+.dashboard-bar-chart-card .recharts-tooltip-cursor,
+.dashboard-bar-chart-card .recharts-active-bar {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

@@ -1,16 +1,14 @@
 import { ConcertCard } from "@/components/ConcertCard";
 import { createClient } from "@/lib/supabase/server";
+import { fetchConcertsForUser, normalizeConcert } from "@/lib/fetch-concerts";
 import type { Concert } from "@/types/concert";
 import Link from "next/link";
 
 export default async function MyConcertsPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("concerts")
-    .select("*")
-    .order("concert_date", { ascending: false });
+  const { data, error } = await fetchConcertsForUser(supabase);
 
-  const concerts = (data ?? []) as Concert[];
+  const concerts = (data ?? []).map((row) => normalizeConcert(row as Concert));
 
   return (
     <div>
