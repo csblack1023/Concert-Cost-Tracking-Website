@@ -1,8 +1,7 @@
 "use client";
 
 import type { Concert } from "@/types/concert";
-import { formatCurrency, funPointsPer100, ticketCostForConcert, totalCost } from "@/lib/concert-utils";
-import { FUN_POINTS_LABEL } from "@/lib/format-usd";
+import { formatCurrency, ticketCostForConcert, totalCost } from "@/lib/concert-utils";
 import { CONCERT_BAR_COLORS } from "@/lib/chart-colors";
 
 type DashboardStatsProps = {
@@ -31,8 +30,6 @@ export function DashboardStats({ concerts }: DashboardStatsProps) {
   const totalSpent = concerts.reduce((s, c) => s + totalCost(c), 0);
   const avgCost = totalSpent / concerts.length;
   const totalTicketSpend = concerts.reduce((s, c) => s + ticketCostForConcert(c), 0);
-  const avgFunPoints =
-    concerts.reduce((s, c) => s + funPointsPer100(c), 0) / concerts.length;
 
   const mostExpensive = concerts.reduce((a, c) =>
     totalCost(c) > totalCost(a) ? c : a
@@ -68,21 +65,16 @@ export function DashboardStats({ concerts }: DashboardStatsProps) {
       accent: CONCERT_BAR_COLORS[3],
     },
     {
-      label: `Avg. ${FUN_POINTS_LABEL}`,
-      value: avgFunPoints.toFixed(2),
-      accent: CONCERT_BAR_COLORS[4],
-    },
-    {
       label: "Most expensive concert",
       value: mostExpensive?.concert_name ?? "—",
       sub: mostExpensive ? formatCurrency(totalCost(mostExpensive)) : undefined,
-      accent: CONCERT_BAR_COLORS[5],
+      accent: CONCERT_BAR_COLORS[4],
     },
     {
       label: "Lowest cost concert",
       value: leastExpensive?.concert_name ?? "—",
       sub: leastExpensive ? formatCurrency(totalCost(leastExpensive)) : undefined,
-      accent: CONCERT_BAR_COLORS[6],
+      accent: CONCERT_BAR_COLORS[5],
     },
   ];
 
